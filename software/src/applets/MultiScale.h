@@ -751,27 +751,41 @@ public:
         chord_sounding[i] = true;
     }
 
+    static void FlushChordUsbMidi() {
+#ifdef ARDUINO_TEENSY41
+        if (~HS::midi_msgtx_disable & HS::mMaskUSBDev) {
+            usbMIDI.send_now();
+        }
+#endif
+    }
+
     void StartChordNotes() {
         if (chord_play_mode == MODE_CHORD || chord_play_mode == MODE_VL_CHORD) {
             for (uint8_t i = 0; i < active_chord_count; i++) PlayChordNote(i);
             strum_active = false;
         } else {
-            strum_active = true;
-            strum_idx = 0;
-            next_strum_tick = chord_tick;
+            PlayChordNote(0);
+            strum_idx = 1;
+            next_strum_tick = chord_tick + strum_ticks;
+            strum_active = (active_chord_count > 1);
         }
+        FlushChordUsbMidi();
     }
 
-    void SendChordNotesOff(bool panic = false) {
+    void SendChordNotesOff(bool panic = false, bool flush = true) {
+        bool sent = false;
         for (uint8_t i = 0; i < active_chord_count; i++) {
             if (chord_sounding[i]) {
                 SendChordMidi(0x80, chord_notes[i], 0);
                 chord_sounding[i] = false;
+                sent = true;
             }
         }
         if (panic && midi_out_ch > 0 && midi_out_ch <= 16) {
             HS::frame.MIDIState.SendCC(midi_out_ch - 1, 123, 0);
+            sent = true;
         }
+        if (flush && sent) FlushChordUsbMidi();
         chord_gate_active = false;
         chord_offset_waiting = false;
         strum_active = false;
@@ -779,7 +793,7 @@ public:
 
     // Called whenever the active scale changes
     void TriggerScaleChord() {
-        SendChordNotesOff();
+        SendChordNotesOff(false, false);
         if (midi_out_ch == 0) return;
 
         BuildChord();
@@ -801,9 +815,14 @@ public:
         if (strum_ticks == 0) strum_ticks = 1;
 
         chord_tick = 0;
-        chord_offset_waiting = true;
         chord_gate_active = true;
         strum_active = false;
+        if (chord_ofs_ticks == 0) {
+            chord_offset_waiting = false;
+            StartChordNotes();
+        } else {
+            chord_offset_waiting = true;
+        }
     }
 
     // Re-voice a currently sounding chord (after editing notes/octave/inversion)
@@ -831,6 +850,7 @@ public:
 
         while (strum_active && chord_tick >= next_strum_tick) {
             PlayChordNote(strum_idx);
+            FlushChordUsbMidi();
             strum_idx++;
             next_strum_tick += strum_ticks;
             if (strum_idx >= active_chord_count) strum_active = false;
