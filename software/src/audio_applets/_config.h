@@ -30,6 +30,7 @@
 #include "InputApplet.h"
 #include "PassthruApplet.h"
 #include "WAVPlayerApplet.h"
+#include "LooperApplet.h"
 #include "LadderApplet.h"
 #include "CloudverbApplet.h"
 #include "LimiterApplet.h"
@@ -85,6 +86,7 @@ constexpr Registry mono_applets = Registry<HemisphereAudioApplet, NUM_SLOTS * 2
     , DeclareFancyApplet<BraidsVoiceApplet>
     // , DeclareFancyApplet<CoralVoiceApplet>
     , DeclareFancyApplet<WavPlayerApplet<MONO>>
+    , DeclareFancyApplet<LooperApplet<MONO>>
     , DeclareFancyApplet<LadderApplet<MONO>>
     , DeclareFancyApplet<CloudverbApplet<MONO>>
     , DeclareFancyApplet<LimiterApplet<MONO>>
@@ -122,6 +124,7 @@ constexpr Registry stereo_applets = Registry<HemisphereAudioApplet, NUM_SLOTS
     , DeclareFancyApplet<PassthruApplet<STEREO>>
     , DeclareFancyApplet<InputApplet<STEREO>>
     , DeclareFancyApplet<WavPlayerApplet<STEREO>>
+    , DeclareFancyApplet<LooperApplet<STEREO>>
     , DeclareFancyApplet<CloudverbApplet<STEREO>>
     , DeclareFancyApplet<LimiterApplet<STEREO>>
 
