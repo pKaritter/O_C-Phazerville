@@ -605,8 +605,8 @@ public:
         }
 
         int eff_shape = shape;
-        if (shape_cv.enabled()) {
-            eff_shape += (int)(shape_cv.InF() * (float)(NUM_BRAIDS_MODELS - 1));
+        if (shape_cv.enabled() || shape_cv2.enabled()) {
+            eff_shape += (int)((shape_cv.InF() + shape_cv2.InF()) * (float)(NUM_BRAIDS_MODELS - 1));
             eff_shape = constrain(eff_shape, 0, NUM_BRAIDS_MODELS - 1);
         }
         eff_disp_shape = eff_shape;
@@ -616,18 +616,19 @@ public:
         if (cur_src != INPUT_SRC_MID) {
             total_pitch += (float)pitch_cv.In();
         }
+        total_pitch += (float)pitch_cv2.In();
         stream().set_pitch_base(total_pitch);
 
-        float t_norm = constrain((float)timbre * 0.01f + timbre_cv.InF(), 0.0f, 1.0f);
+        float t_norm = constrain((float)timbre * 0.01f + timbre_cv.InF() + timbre_cv2.InF(), 0.0f, 1.0f);
         stream().set_timbre(t_norm);
 
-        float c_norm = constrain((float)color * 0.01f + color_cv.InF(), 0.0f, 1.0f);
+        float c_norm = constrain((float)color * 0.01f + color_cv.InF() + color_cv2.InF(), 0.0f, 1.0f);
         stream().set_color(c_norm);
 
-        float a_norm = constrain((float)attack_time * 0.01f + attack_cv.InF(), 0.0f, 1.0f);
+        float a_norm = constrain((float)attack_time * 0.01f + attack_cv.InF() + attack_cv2.InF(), 0.0f, 1.0f);
         stream().set_attack(a_norm);
 
-        float r_norm = constrain((float)release_time * 0.01f + release_cv.InF(), 0.0f, 1.0f);
+        float r_norm = constrain((float)release_time * 0.01f + release_cv.InF() + release_cv2.InF(), 0.0f, 1.0f);
         stream().set_release(r_norm);
 
         stream().set_voice_mode((BraidsVoiceMode)voice_mode_idx);
@@ -660,17 +661,20 @@ public:
         if (!pg2) {
             // ── Page 1: Timbre & Sound Parameters ───────────────────────────
             // Row 1: Model
-            gfxPrint(1, 15, "M:");
-            gfxStartCursor(13, 15);
+            gfxPrint(1, 15, "M");
+            gfxStartCursor(9, 15);
             int disp_shape = (cursor == CURSOR_MODEL && EditMode()) ? shape : eff_disp_shape;
             if (disp_shape >= 0 && disp_shape < NUM_BRAIDS_MODELS) {
                 gfxPrint(braids_model_names[disp_shape]);
             }
             gfxEndCursor(cursor == CURSOR_MODEL);
 
-            gfxStartCursor(53, 15);
+            gfxStartCursor(46, 15);
             gfxPrint(shape_cv);
             gfxEndCursor(cursor == CURSOR_MODEL_CV, false, shape_cv.InputName());
+            gfxStartCursor(54, 15);
+            gfxPrint(shape_cv2);
+            gfxEndCursor(cursor == CURSOR_MODEL_CV2, false, shape_cv2.InputName());
 
             // Row 2: Pitch
             gfxStartCursor(1, 25);
@@ -678,56 +682,78 @@ public:
             gfxEndCursor(cursor == CURSOR_PITCH_SEMI);
 
             gfxStartCursor(11, 25);
-            gfxPrintPitchHz(pitch);
+            {
+                float freq = PitchToRatio(pitch) * C3;
+                int shiftedFreq = static_cast<int>(roundf(freq * 10));
+                int int_part = shiftedFreq / 10;
+                int dec = shiftedFreq % 10;
+                if (int_part > 9999) graphics.printf("%6d", int_part);
+                else graphics.printf("%4d.%01d", int_part, dec);
+            }
             gfxEndCursor(cursor == CURSOR_PITCH_FINE);
 
-            gfxStartCursor(53, 25);
+            gfxStartCursor(46, 25);
             gfxPrint(pitch_cv);
             gfxEndCursor(cursor == CURSOR_PITCH_CV, false, pitch_cv.InputName());
+            gfxStartCursor(54, 25);
+            gfxPrint(pitch_cv2);
+            gfxEndCursor(cursor == CURSOR_PITCH_CV2, false, pitch_cv2.InputName());
 
             // Row 3: Timbre
-            gfxPrint(1, 35, "Tmb:");
-            gfxStartCursor(25, 35);
+            gfxPrint(1, 35, "Tmb");
+            gfxStartCursor(21, 35);
             graphics.printf("%3d%%", timbre);
             gfxEndCursor(cursor == CURSOR_TIMBRE);
 
-            gfxStartCursor(53, 35);
+            gfxStartCursor(46, 35);
             gfxPrint(timbre_cv);
             gfxEndCursor(cursor == CURSOR_TIMBRE_CV, false, timbre_cv.InputName());
+            gfxStartCursor(54, 35);
+            gfxPrint(timbre_cv2);
+            gfxEndCursor(cursor == CURSOR_TIMBRE_CV2, false, timbre_cv2.InputName());
 
             // Row 4: Color
-            gfxPrint(1, 45, "Col:");
-            gfxStartCursor(25, 45);
+            gfxPrint(1, 45, "Col");
+            gfxStartCursor(21, 45);
             graphics.printf("%3d%%", color);
             gfxEndCursor(cursor == CURSOR_COLOR);
 
-            gfxStartCursor(53, 45);
+            gfxStartCursor(46, 45);
             gfxPrint(color_cv);
             gfxEndCursor(cursor == CURSOR_COLOR_CV, false, color_cv.InputName());
+            gfxStartCursor(54, 45);
+            gfxPrint(color_cv2);
+            gfxEndCursor(cursor == CURSOR_COLOR_CV2, false, color_cv2.InputName());
 
             // Row 5: Decay / Release
-            gfxPrint(1, 55, "Dec:");
-            gfxStartCursor(25, 55);
+            gfxPrint(1, 55, "Dec");
+            gfxStartCursor(21, 55);
             if (release_time >= 100) graphics.print("INF");
             else graphics.printf("%3d%%", release_time);
             gfxEndCursor(cursor == CURSOR_RELEASE);
 
-            gfxStartCursor(53, 55);
+            gfxStartCursor(46, 55);
             gfxPrint(release_cv);
             gfxEndCursor(cursor == CURSOR_RELEASE_CV, false, release_cv.InputName());
+            gfxStartCursor(54, 55);
+            gfxPrint(release_cv2);
+            gfxEndCursor(cursor == CURSOR_RELEASE_CV2, false, release_cv2.InputName());
 
             gfxPrint(58, 2, "1");
         } else {
             // ── Page 2: Envelopes, Polyphony, Modulation & Inputs ───────────
-            // Row 1: Attack + Attack CV
-            gfxPrint(1, 15, "Atk:");
-            gfxStartCursor(25, 15);
+            // Row 1: Attack + Attack CV 1 & 2
+            gfxPrint(1, 15, "Atk");
+            gfxStartCursor(21, 15);
             graphics.printf("%3d%%", attack_time);
             gfxEndCursor(cursor == CURSOR_ATTACK);
 
-            gfxStartCursor(53, 15);
+            gfxStartCursor(46, 15);
             gfxPrint(attack_cv);
             gfxEndCursor(cursor == CURSOR_ATTACK_CV, false, attack_cv.InputName());
+            gfxStartCursor(54, 15);
+            gfxPrint(attack_cv2);
+            gfxEndCursor(cursor == CURSOR_ATTACK_CV2, false, attack_cv2.InputName());
 
             // Row 2: Polyphony Mode & MIDI Channel
             gfxPrint(1, 25, "Ply:");
@@ -789,11 +815,17 @@ public:
         if (CheckEditInputMapPress(
             cursor,
             IndexedInput(CURSOR_MODEL_CV,        shape_cv),
+            IndexedInput(CURSOR_MODEL_CV2,       shape_cv2),
             IndexedInput(CURSOR_PITCH_CV,        pitch_cv),
+            IndexedInput(CURSOR_PITCH_CV2,       pitch_cv2),
             IndexedInput(CURSOR_TIMBRE_CV,       timbre_cv),
+            IndexedInput(CURSOR_TIMBRE_CV2,      timbre_cv2),
             IndexedInput(CURSOR_COLOR_CV,        color_cv),
+            IndexedInput(CURSOR_COLOR_CV2,       color_cv2),
             IndexedInput(CURSOR_RELEASE_CV,      release_cv),
+            IndexedInput(CURSOR_RELEASE_CV2,     release_cv2),
             IndexedInput(CURSOR_ATTACK_CV,       attack_cv),
+            IndexedInput(CURSOR_ATTACK_CV2,      attack_cv2),
             IndexedInput(CURSOR_TRIG_CV,         trig_cv),
             IndexedInput(CURSOR_INPUT_SRC_GATE,  src_gate)
         )) return;
@@ -817,6 +849,9 @@ public:
             case CURSOR_MODEL_CV:
                 shape_cv.ChangeSource(direction);
                 break;
+            case CURSOR_MODEL_CV2:
+                shape_cv2.ChangeSource(direction);
+                break;
             case CURSOR_PITCH_SEMI:
                 pitch = constrain(pitch + direction * 128, MIN_PITCH, MAX_PITCH);
                 break;
@@ -826,11 +861,17 @@ public:
             case CURSOR_PITCH_CV:
                 pitch_cv.ChangeSource(direction);
                 break;
+            case CURSOR_PITCH_CV2:
+                pitch_cv2.ChangeSource(direction);
+                break;
             case CURSOR_TIMBRE:
                 timbre = (uint8_t)constrain((int)timbre + direction, 0, 100);
                 break;
             case CURSOR_TIMBRE_CV:
                 timbre_cv.ChangeSource(direction);
+                break;
+            case CURSOR_TIMBRE_CV2:
+                timbre_cv2.ChangeSource(direction);
                 break;
             case CURSOR_COLOR:
                 color = (uint8_t)constrain((int)color + direction, 0, 100);
@@ -838,17 +879,26 @@ public:
             case CURSOR_COLOR_CV:
                 color_cv.ChangeSource(direction);
                 break;
+            case CURSOR_COLOR_CV2:
+                color_cv2.ChangeSource(direction);
+                break;
             case CURSOR_RELEASE:
                 release_time = (uint8_t)constrain((int)release_time + direction, 0, 100);
                 break;
             case CURSOR_RELEASE_CV:
                 release_cv.ChangeSource(direction);
                 break;
+            case CURSOR_RELEASE_CV2:
+                release_cv2.ChangeSource(direction);
+                break;
             case CURSOR_ATTACK:
                 attack_time = (uint8_t)constrain((int)attack_time + direction, 0, 100);
                 break;
             case CURSOR_ATTACK_CV:
                 attack_cv.ChangeSource(direction);
+                break;
+            case CURSOR_ATTACK_CV2:
+                attack_cv2.ChangeSource(direction);
                 break;
             case CURSOR_VOICE_MODE:
                 voice_mode_idx = (uint8_t)constrain((int)voice_mode_idx + direction, 0, 3);
@@ -908,6 +958,8 @@ public:
         data[1] = PackPackables(pitch, dummy_pad, shape_cv, pitch_cv);
         data[2] = PackPackables(timbre_cv, color_cv, attack_cv, release_cv);
         data[3] = PackPackables(trig_cv, src_gate);
+        data[4] = PackPackables(shape_cv2, pitch_cv2, timbre_cv2, color_cv2);
+        data[5] = PackPackables(attack_cv2, release_cv2);
     }
 
     void OnDataReceive(const std::array<uint64_t, CONFIG_SIZE>& data) override {
@@ -942,6 +994,8 @@ public:
         UnpackPackables(data[1], pitch, dummy_pad, shape_cv, pitch_cv);
         UnpackPackables(data[2], timbre_cv, color_cv, attack_cv, release_cv);
         UnpackPackables(data[3], trig_cv, src_gate);
+        UnpackPackables(data[4], shape_cv2, pitch_cv2, timbre_cv2, color_cv2);
+        UnpackPackables(data[5], attack_cv2, release_cv2);
 
         if (!pitch_cv.enabled()) {
             pitch_cv.SetInput(get_side() == 0 ? 0 : (ADC_CHANNEL_COUNT > 2 ? 2 : 1));
@@ -970,20 +1024,26 @@ private:
         // Page 1: Timbre & Sound Parameters
         CURSOR_MODEL,
         CURSOR_MODEL_CV,
+        CURSOR_MODEL_CV2,
         CURSOR_PITCH_SEMI,
         CURSOR_PITCH_FINE,
         CURSOR_PITCH_CV,
+        CURSOR_PITCH_CV2,
         CURSOR_TIMBRE,
         CURSOR_TIMBRE_CV,
+        CURSOR_TIMBRE_CV2,
         CURSOR_COLOR,
         CURSOR_COLOR_CV,
+        CURSOR_COLOR_CV2,
         CURSOR_RELEASE,
         CURSOR_RELEASE_CV,
+        CURSOR_RELEASE_CV2,
 
         // Page 2: Envelopes, Polyphony & Inputs
         PAGE2_START,
         CURSOR_ATTACK = PAGE2_START,
         CURSOR_ATTACK_CV,
+        CURSOR_ATTACK_CV2,
         CURSOR_VOICE_MODE,
         CURSOR_MIDI_CHANNEL,
         CURSOR_TRIG_CV,
@@ -1024,11 +1084,17 @@ private:
     int adc_lag_ = 0;
 
     CVInputMap shape_cv;
+    CVInputMap shape_cv2;
     CVInputMap pitch_cv;
+    CVInputMap pitch_cv2;
     CVInputMap timbre_cv;
+    CVInputMap timbre_cv2;
     CVInputMap color_cv;
+    CVInputMap color_cv2;
     CVInputMap attack_cv;
+    CVInputMap attack_cv2;
     CVInputMap release_cv;
+    CVInputMap release_cv2;
     DigitalInputMap trig_cv;
     DigitalInputMap src_gate;
 };

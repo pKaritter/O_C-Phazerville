@@ -19,7 +19,7 @@ public:
   // static Factory<AudioEffectFreeverb, 8> verb_factory;
   static Factory<AudioEffectDynamics, 20> compressor_factory;
 
-  static const uint_fast8_t CONFIG_SIZE = 4;
+  static const uint_fast8_t CONFIG_SIZE = 6;
   static const uint_fast8_t MAX_CABLES = 32;
 
   // -90 = 15bits of depth so no point in going lower
@@ -58,9 +58,7 @@ public:
   }
   virtual void OnDataRequest(std::array<uint64_t, CONFIG_SIZE>& data) {
     data[0] = OnDataRequest();
-    data[1] = 0;
-    data[2] = 0;
-    data[3] = 0;
+    for (size_t i = 1; i < CONFIG_SIZE; ++i) data[i] = 0;
   }
 
   virtual void Unload() override {

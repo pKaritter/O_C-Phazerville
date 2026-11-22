@@ -51,7 +51,8 @@ public:
   }
   void Controller() override {
     ForEachChannel(ch) {
-      attenuations[ch].Push(float_to_q15(level_cv.InF(1.0)));
+      float mod = constrain(level_cv.InF(1.0f) + level_cv2.InF(0.0f), 0.0f, 1.0f);
+      attenuations[ch].Push(float_to_q15(mod));
     }
   }
   void View() override {
@@ -63,12 +64,16 @@ public:
     };
     gfxPrint(3, 15, txt[modesel_]);
     if (cursor == CHANNEL_MODE) gfxCursor(3, 23, 31, "Mode");
-    gfxPrint(1, 45, "Lvl:");
+    gfxPrint(1, 45, "Lvl");
+    gfxPos(19, 45);
     gfxPrintDb(level);
-    if (cursor == IN_LEVEL) gfxCursor(26, 53, 30, "Gain");
-    gfxStartCursor();
+    if (cursor == IN_LEVEL) gfxCursor(19, 53, 26, "Gain");
+    gfxStartCursor(46, 45);
     gfxPrint(level_cv);
     gfxEndCursor(cursor == LEVEL_CV, false, level_cv.InputName());
+    gfxStartCursor(54, 45);
+    gfxPrint(level_cv2);
+    gfxEndCursor(cursor == LEVEL_CV2, false, level_cv2.InputName());
 
     ForEachChannel(ch) {
       if (peakmeter[ch].available()) {
@@ -82,7 +87,7 @@ public:
   void OnDataRequest(std::array<uint64_t, CONFIG_SIZE>& data) override {
     // abandoning old data at index 0
     //data[0] = PackPackables(...);
-    data[1] = PackPackables(modesel_, level, level_cv);
+    data[1] = PackPackables(modesel_, level, level_cv, level_cv2);
   }
   void OnDataReceive(const std::array<uint64_t, CONFIG_SIZE>& data) override {
     if (data[0] != 0) {
@@ -92,14 +97,18 @@ public:
       if (mixtomono || modesel_ == 2) modesel_ = MIXED;
       CONSTRAIN(modesel_, 0, MODE_COUNT - 1);
     } else {
-      UnpackPackables(data[1], modesel_, level, level_cv);
+      UnpackPackables(data[1], modesel_, level, level_cv, level_cv2);
     }
     UpdateMix();
   }
 
   // *****
   void OnButtonPress() override {
-    if (CheckEditInputMapPress(cursor, IndexedInput(LEVEL_CV, level_cv)))
+    if (CheckEditInputMapPress(
+          cursor,
+          IndexedInput(LEVEL_CV, level_cv),
+          IndexedInput(LEVEL_CV2, level_cv2)
+        ))
       return;
     CursorToggle();
   }
@@ -116,6 +125,9 @@ public:
         break;
       case LEVEL_CV:
         level_cv.ChangeSource(direction);
+        break;
+      case LEVEL_CV2:
+        level_cv2.ChangeSource(direction);
         break;
       case CHANNEL_MODE:
         modesel_ = constrain(modesel_ + direction, 0, MODE_COUNT - 1);
@@ -211,6 +223,7 @@ private:
   int8_t modesel_ = DUAL;
   int8_t level = 0;
   CVInputMap level_cv;
+  CVInputMap level_cv2;
 
   enum ModeSelect {
     LEFT, RIGHT, DUAL, MIXED,
@@ -219,6 +232,6 @@ private:
 #endif
     MODE_COUNT
   };
-  enum InputCursor { CHANNEL_MODE, IN_LEVEL, LEVEL_CV, MAX_CURSOR = LEVEL_CV };
+  enum InputCursor { CHANNEL_MODE, IN_LEVEL, LEVEL_CV, LEVEL_CV2, MAX_CURSOR = LEVEL_CV2 };
   int cursor = 0;
 };

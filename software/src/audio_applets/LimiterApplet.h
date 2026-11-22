@@ -73,18 +73,18 @@ public:
 
         // Apply CV Modulations
         float eff_ceil_db = limiter_ceiling_values[ceiling_idx];
-        if (ceil_cv.enabled()) {
-            eff_ceil_db = constrain(eff_ceil_db + ceil_cv.InF(12.0f), -24.0f, 0.0f);
+        if (ceil_cv.enabled() || ceil_cv2.enabled()) {
+            eff_ceil_db = constrain(eff_ceil_db + ceil_cv.InF(12.0f) + ceil_cv2.InF(12.0f), -24.0f, 0.0f);
         }
 
         float eff_drive_db = (float)drive_db;
-        if (drive_cv.enabled()) {
-            eff_drive_db = constrain(eff_drive_db + drive_cv.InF(18.0f), -24.0f, 24.0f);
+        if (drive_cv.enabled() || drive_cv2.enabled()) {
+            eff_drive_db = constrain(eff_drive_db + drive_cv.InF(18.0f) + drive_cv2.InF(18.0f), -24.0f, 24.0f);
         }
 
         float eff_rel_ms = limiter_release_values[release_idx];
-        if (rel_cv.enabled() && eff_rel_ms > 0.0f) {
-            eff_rel_ms = constrain(eff_rel_ms * (1.0f + rel_cv.InF(1.0f)), 5.0f, 1000.0f);
+        if ((rel_cv.enabled() || rel_cv2.enabled()) && eff_rel_ms > 0.0f) {
+            eff_rel_ms = constrain(eff_rel_ms * (1.0f + rel_cv.InF(1.0f) + rel_cv2.InF(1.0f)), 5.0f, 1000.0f);
         }
 
         limiter.setCeiling(eff_ceil_db);
@@ -153,37 +153,46 @@ public:
         }
 
         // ── Row 2: Ceiling (y = 26) ──────────────────────────────────────────
-        gfxPrint(1, 26, "Clg:");
-        gfxStartCursor(23, 26);
+        gfxPrint(1, 26, "Clg");
+        gfxStartCursor(21, 26);
         float c = limiter_ceiling_values[ceiling_idx];
-        if (c == 0.0f) graphics.print(" 0.0dB");
-        else graphics.printf("%4.1fdB", c);
+        if (c == 0.0f) graphics.print(" 0.0");
+        else graphics.printf("%4.1f", c);
         gfxEndCursor(cursor == CURSOR_CEILING);
 
-        gfxStartCursor(53, 26);
+        gfxStartCursor(46, 26);
         gfxPrint(ceil_cv);
         gfxEndCursor(cursor == CURSOR_CEIL_CV, false, ceil_cv.InputName());
+        gfxStartCursor(54, 26);
+        gfxPrint(ceil_cv2);
+        gfxEndCursor(cursor == CURSOR_CEIL_CV2, false, ceil_cv2.InputName());
 
         // ── Row 3: Drive / Pre-Gain (y = 36) ─────────────────────────────────
-        gfxPrint(1, 36, "Drv:");
-        gfxStartCursor(23, 36);
-        if (drive_db >= 0) graphics.printf("+%2ddB", drive_db);
-        else graphics.printf("%3ddB", drive_db);
+        gfxPrint(1, 36, "Drv");
+        gfxStartCursor(21, 36);
+        if (drive_db >= 0) graphics.printf("+%2d", drive_db);
+        else graphics.printf("%3d", drive_db);
         gfxEndCursor(cursor == CURSOR_DRIVE);
 
-        gfxStartCursor(53, 36);
+        gfxStartCursor(46, 36);
         gfxPrint(drive_cv);
         gfxEndCursor(cursor == CURSOR_DRIVE_CV, false, drive_cv.InputName());
+        gfxStartCursor(54, 36);
+        gfxPrint(drive_cv2);
+        gfxEndCursor(cursor == CURSOR_DRIVE_CV2, false, drive_cv2.InputName());
 
         // ── Row 4: Release Time (y = 46) ─────────────────────────────────────
-        gfxPrint(1, 46, "Rel:");
-        gfxStartCursor(23, 46);
+        gfxPrint(1, 46, "Rel");
+        gfxStartCursor(20, 46);
         graphics.print(limiter_release_names[release_idx]);
         gfxEndCursor(cursor == CURSOR_RELEASE);
 
-        gfxStartCursor(53, 46);
+        gfxStartCursor(46, 46);
         gfxPrint(rel_cv);
         gfxEndCursor(cursor == CURSOR_REL_CV, false, rel_cv.InputName());
+        gfxStartCursor(54, 46);
+        gfxPrint(rel_cv2);
+        gfxEndCursor(cursor == CURSOR_REL_CV2, false, rel_cv2.InputName());
 
         // ── Row 5: Knee Character & Bypass Button (y = 56) ───────────────────
         gfxPrint(1, 56, "Kne:");
@@ -209,9 +218,12 @@ public:
     void OnButtonPress() override {
         if (CheckEditInputMapPress(
             cursor,
-            IndexedInput(CURSOR_CEIL_CV, ceil_cv),
-            IndexedInput(CURSOR_DRIVE_CV, drive_cv),
-            IndexedInput(CURSOR_REL_CV, rel_cv)
+            IndexedInput(CURSOR_CEIL_CV,  ceil_cv),
+            IndexedInput(CURSOR_CEIL_CV2, ceil_cv2),
+            IndexedInput(CURSOR_DRIVE_CV,  drive_cv),
+            IndexedInput(CURSOR_DRIVE_CV2, drive_cv2),
+            IndexedInput(CURSOR_REL_CV,   rel_cv),
+            IndexedInput(CURSOR_REL_CV2,  rel_cv2)
         )) return;
 
         if (cursor == CURSOR_BYPASS) {
@@ -238,17 +250,26 @@ public:
             case CURSOR_CEIL_CV:
                 ceil_cv.ChangeSource(direction);
                 break;
+            case CURSOR_CEIL_CV2:
+                ceil_cv2.ChangeSource(direction);
+                break;
             case CURSOR_DRIVE:
                 drive_db = constrain(drive_db + direction, -18, 24);
                 break;
             case CURSOR_DRIVE_CV:
                 drive_cv.ChangeSource(direction);
                 break;
+            case CURSOR_DRIVE_CV2:
+                drive_cv2.ChangeSource(direction);
+                break;
             case CURSOR_RELEASE:
                 release_idx = constrain(release_idx + direction, 0, NUM_LIMITER_RELEASES - 1);
                 break;
             case CURSOR_REL_CV:
                 rel_cv.ChangeSource(direction);
+                break;
+            case CURSOR_REL_CV2:
+                rel_cv2.ChangeSource(direction);
                 break;
             case CURSOR_KNEE:
                 knee_idx = constrain(knee_idx + direction, 0, 2);
@@ -276,8 +297,8 @@ public:
             pack<2>(knee_idx),
             pack<1>(raw_byp)
         );
-        data[1] = PackPackables(ceil_cv, drive_cv);
-        data[2] = PackPackables(rel_cv);
+        data[1] = PackPackables(ceil_cv, drive_cv, ceil_cv2, drive_cv2);
+        data[2] = PackPackables(rel_cv, rel_cv2);
         data[3] = 0;
     }
 
@@ -292,8 +313,8 @@ public:
             pack<2>(knee_idx),
             pack<1>(raw_byp)
         );
-        UnpackPackables(data[1], ceil_cv, drive_cv);
-        UnpackPackables(data[2], rel_cv);
+        UnpackPackables(data[1], ceil_cv, drive_cv, ceil_cv2, drive_cv2);
+        UnpackPackables(data[2], rel_cv, rel_cv2);
 
         ceiling_idx = constrain(ceiling_idx, 0, NUM_LIMITER_CEILINGS - 1);
         drive_db = (int8_t)raw_drv - 24;
@@ -327,10 +348,13 @@ private:
     enum Cursor {
         CURSOR_CEILING = 0,
         CURSOR_CEIL_CV,
+        CURSOR_CEIL_CV2,
         CURSOR_DRIVE,
         CURSOR_DRIVE_CV,
+        CURSOR_DRIVE_CV2,
         CURSOR_RELEASE,
         CURSOR_REL_CV,
+        CURSOR_REL_CV2,
         CURSOR_KNEE,
         CURSOR_BYPASS,
         CURSOR_COUNT
@@ -345,8 +369,11 @@ private:
     bool alloc_ok = false;
 
     CVInputMap ceil_cv;
+    CVInputMap ceil_cv2;
     CVInputMap drive_cv;
+    CVInputMap drive_cv2;
     CVInputMap rel_cv;
+    CVInputMap rel_cv2;
 
     AudioPassthrough<Channels> input;
     AudioEffectBrickwallLimiter limiter;

@@ -70,10 +70,10 @@ public:
   }
 
   void Controller() {
-    djfilter_mod = constrain(djfilter + ReadModulation(djfilter_cv, 128), -64, 64);
+    djfilter_mod = constrain(djfilter + ReadModulation(djfilter_cv, 128) + ReadModulation(djfilter_cv2, 128), -64, 64);
     SetFilter(filter_on * djfilter_mod);
 
-    float gain_mod = (float)ReadModulation(level_cv, 100) * 0.01f;
+    float gain_mod = (float)(ReadModulation(level_cv, 100) + ReadModulation(level_cv2, 100)) * 0.01f;
     float gain = dbToScalar(level) + gain_mod;
     if (gain < 0.0f) gain = 0.0f;
 
@@ -81,15 +81,15 @@ public:
     if (tempo_sync) {
       FileMatchTempo();
     } else {
-      float rate_mod = (float)ReadModulation(playrate_cv, 100) * 0.01f;
+      float rate_mod = (float)(ReadModulation(playrate_cv, 100) + ReadModulation(playrate_cv2, 100)) * 0.01f;
       FileRate(0.01f * playrate + rate_mod);
     }
 
-    start_beat_mod = constrain(start_beat + start_beat_cv.SemitoneIn(), 0, 999);
+    start_beat_mod = constrain(start_beat + start_beat_cv.SemitoneIn() + start_beat_cv2.SemitoneIn(), 0, 999);
     if (wavplayer_ready)
       wavplayer.setBeatStart(start_beat_mod);
 
-    int beats_mod = ReadModulation(loop_len_beats_cv, 131);
+    int beats_mod = ReadModulation(loop_len_beats_cv, 131) + ReadModulation(loop_len_beats_cv2, 131);
     effective_loop_length = constrain(loop_length + beats_mod, 0, 131);
 
     UpdateLoopPoints();
@@ -221,9 +221,12 @@ public:
     else
       gfxPrint(37, y, "(--)");
 
-    gfxStartCursor(56, y);
+    gfxStartCursor(48, y);
     gfxPrint(djfilter_cv);
     gfxEndCursor(cursor == FILTER_CV, false, djfilter_cv.InputName(), "FilterCV");
+    gfxStartCursor(56, y);
+    gfxPrint(djfilter_cv2);
+    gfxEndCursor(cursor == FILTER_CV2, false, djfilter_cv2.InputName(), "FiltCV2");
 
     if (filter_on) {
       const int w = abs(djfilter_mod);
@@ -263,19 +266,25 @@ public:
     gfxStartCursor();
     gfxPrint(level_cv);
     gfxEndCursor(cursor == LEVEL_CV, false, level_cv.InputName(), "Gain CV");
+    gfxStartCursor();
+    gfxPrint(level_cv2);
+    gfxEndCursor(cursor == LEVEL_CV2, false, level_cv2.InputName(), "GainCV2");
 
     y += 10;
     if (tempo_sync) {
-      gfxPrint(1, y, "Sync:");
+      gfxPrint(1, y, "Sync");
     } else {
-      gfxPrint(1, y, "Rate:");
+      gfxPrint(1, y, "Rate");
     }
-    gfxStartCursor();
+    gfxStartCursor(23, y);
     graphics.printf("%3d%%", playrate);
     gfxEndCursor(cursor == PLAYRATE, true);
-    gfxStartCursor();
+    gfxStartCursor(48, y);
     gfxPrint(playrate_cv);
     gfxEndCursor(cursor == PLAYRATE_CV, false, playrate_cv.InputName(), "Rate CV");
+    gfxStartCursor(56, y);
+    gfxPrint(playrate_cv2);
+    gfxEndCursor(cursor == PLAYRATE_CV2, false, playrate_cv2.InputName(), "RateCV2");
 
     y += 10;
     if (cursor < LOOP_START_PCT) {
@@ -288,19 +297,30 @@ public:
       gfxStartCursor(40, y);
       gfxPrint(start_beat_cv);
       gfxEndCursor(cursor == START_BEAT_CV, false, start_beat_cv.InputName(), "Start CV");
-    } else if (cursor <= LOOP_LEN_CV) {
-      gfxPrint(1, y, "St:");
-      gfxStartCursor(17, y);
-      graphics.printf("%2d%%", loop_start_mod);
+      gfxStartCursor(48, y);
+      gfxPrint(start_beat_cv2);
+      gfxEndCursor(cursor == START_BEAT_CV2, false, start_beat_cv2.InputName(), "StrtCV2");
+    } else if (cursor <= LOOP_LEN_CV2) {
+      gfxPrint(1, y, "S");
+      gfxStartCursor(7, y);
+      graphics.printf("%2d", loop_start_mod);
       gfxEndCursor(cursor == LOOP_START_PCT, "LoopSt%");
-      gfxStartCursor(37, y);
+      gfxStartCursor(19, y);
       gfxPrint(loop_start_cv);
       gfxEndCursor(cursor == LOOP_START_CV, false, loop_start_cv.InputName(), "Strt CV");
+      gfxStartCursor(27, y);
+      gfxPrint(loop_start_cv2);
+      gfxEndCursor(cursor == LOOP_START_CV2, false, loop_start_cv2.InputName(), "StrtCV2");
 
-      gfxPrint(43, y, "L:");
-      gfxStartCursor(52, y);
+      gfxStartCursor(36, y);
       graphics.printf("%2d", loop_len_mod);
       gfxEndCursor(cursor == LOOP_LEN_PCT, "LoopLn%");
+      gfxStartCursor(48, y);
+      gfxPrint(loop_len_cv);
+      gfxEndCursor(cursor == LOOP_LEN_CV, false, loop_len_cv.InputName(), "Len CV");
+      gfxStartCursor(56, y);
+      gfxPrint(loop_len_cv2);
+      gfxEndCursor(cursor == LOOP_LEN_CV2, false, loop_len_cv2.InputName(), "Len CV2");
     } else {
       gfxIcon(1, y, LOOP_ICON);
       gfxStartCursor(10, y);
@@ -319,10 +339,13 @@ public:
       gfxStartCursor(28, y);
       gfxPrint(loop_len_beats_cv);
       gfxEndCursor(cursor == LOOP_BEATS_CV, false, loop_len_beats_cv.InputName(), "BeatsCV");
+      gfxStartCursor(36, y);
+      gfxPrint(loop_len_beats_cv2);
+      gfxEndCursor(cursor == LOOP_BEATS_CV2, false, loop_len_beats_cv2.InputName(), "BeatCV2");
 
-      gfxIcon(50, y, loop_on ? CHECK_ON_ICON : CHECK_OFF_ICON);
+      gfxIcon(52, y, loop_on ? CHECK_ON_ICON : CHECK_OFF_ICON);
       if (cursor == LOOP_ENABLE)
-        gfxIcon(42, y, RIGHT_ICON, true);
+        gfxIcon(44, y, RIGHT_ICON, true);
     }
 
     gfxDisplayInputMapEditor();
@@ -342,12 +365,19 @@ public:
           cursor,
           IndexedInput(PLAYSTOP_GATE_CV, playstop_cv),
           IndexedInput(FILTER_CV, djfilter_cv),
+          IndexedInput(FILTER_CV2, djfilter_cv2),
           IndexedInput(LEVEL_CV, level_cv),
+          IndexedInput(LEVEL_CV2, level_cv2),
           IndexedInput(PLAYRATE_CV, playrate_cv),
+          IndexedInput(PLAYRATE_CV2, playrate_cv2),
           IndexedInput(START_BEAT_CV, start_beat_cv),
+          IndexedInput(START_BEAT_CV2, start_beat_cv2),
           IndexedInput(LOOP_START_CV, loop_start_cv),
+          IndexedInput(LOOP_START_CV2, loop_start_cv2),
           IndexedInput(LOOP_LEN_CV, loop_len_cv),
-          IndexedInput(LOOP_BEATS_CV, loop_len_beats_cv)
+          IndexedInput(LOOP_LEN_CV2, loop_len_cv2),
+          IndexedInput(LOOP_BEATS_CV, loop_len_beats_cv),
+          IndexedInput(LOOP_BEATS_CV2, loop_len_beats_cv2)
     )) return;
 
     if (LOOP_ENABLE == cursor) {
@@ -377,11 +407,17 @@ public:
       case FILTER_CV:
         djfilter_cv.ChangeSource(direction);
         break;
+      case FILTER_CV2:
+        djfilter_cv2.ChangeSource(direction);
+        break;
       case LEVEL:
         level = constrain(level + direction, -90, 90);
         break;
       case LEVEL_CV:
         level_cv.ChangeSource(direction);
+        break;
+      case LEVEL_CV2:
+        level_cv2.ChangeSource(direction);
         break;
       case PLAYRATE:
         playrate = constrain(playrate + direction, -200, 200);
@@ -389,11 +425,17 @@ public:
       case PLAYRATE_CV:
         playrate_cv.ChangeSource(direction);
         break;
+      case PLAYRATE_CV2:
+        playrate_cv2.ChangeSource(direction);
+        break;
       case START_BEAT:
         start_beat = constrain(start_beat + direction, 0, 999);
         break;
       case START_BEAT_CV:
         start_beat_cv.ChangeSource(direction);
+        break;
+      case START_BEAT_CV2:
+        start_beat_cv2.ChangeSource(direction);
         break;
       case LOOP_START_PCT:
         loop_start_pct = constrain(loop_start_pct + direction, 0, 99);
@@ -401,17 +443,26 @@ public:
       case LOOP_START_CV:
         loop_start_cv.ChangeSource(direction);
         break;
+      case LOOP_START_CV2:
+        loop_start_cv2.ChangeSource(direction);
+        break;
       case LOOP_LEN_PCT:
         loop_len_pct = constrain(loop_len_pct + direction, 1, 100);
         break;
       case LOOP_LEN_CV:
         loop_len_cv.ChangeSource(direction);
         break;
+      case LOOP_LEN_CV2:
+        loop_len_cv2.ChangeSource(direction);
+        break;
       case LOOP_LENGTH:
         loop_length = constrain(loop_length + direction, 0, 131);
         break;
       case LOOP_BEATS_CV:
         loop_len_beats_cv.ChangeSource(direction);
+        break;
+      case LOOP_BEATS_CV2:
+        loop_len_beats_cv2.ChangeSource(direction);
         break;
     }
   }
@@ -423,6 +474,8 @@ public:
     data[1] = PackPackables(playrate, djfilter_cv, loop_start_pct, loop_length, loop_len_beats_cv);
     data[2] = PackPackables(start_beat, start_beat_cv, playstop_cv);
     data[3] = PackPackables(wavplayer_select, loop_len_pct, loop_start_cv, loop_len_cv);
+    data[4] = PackPackables(djfilter_cv2, level_cv2, playrate_cv2, start_beat_cv2);
+    data[5] = PackPackables(loop_start_cv2, loop_len_cv2, loop_len_beats_cv2);
   }
 
   void OnDataReceive(const std::array<uint64_t, CONFIG_SIZE>& data) override {
@@ -432,6 +485,8 @@ public:
     UnpackPackables(data[1], playrate, djfilter_cv, loop_start_pct, loop_length, loop_len_beats_cv);
     UnpackPackables(data[2], start_beat, start_beat_cv, playstop_cv);
     UnpackPackables(data[3], wavplayer_select, loop_len_pct, loop_start_cv, loop_len_cv);
+    UnpackPackables(data[4], djfilter_cv2, level_cv2, playrate_cv2, start_beat_cv2);
+    UnpackPackables(data[5], loop_start_cv2, loop_len_cv2, loop_len_beats_cv2);
     if (playrate == 0) playrate = old_playrate;
     if (old_playrate) tempo_sync = true;
     if (loop_length == 0) loop_length = 11;
@@ -463,18 +518,25 @@ private:
     PLAYSTOP_GATE_CV,
     FILTER_PARAM,
     FILTER_CV,
+    FILTER_CV2,
     LEVEL,
     LEVEL_CV,
+    LEVEL_CV2,
     PLAYRATE,
     PLAYRATE_CV,
+    PLAYRATE_CV2,
     START_BEAT,
     START_BEAT_CV,
+    START_BEAT_CV2,
     LOOP_START_PCT,
     LOOP_START_CV,
+    LOOP_START_CV2,
     LOOP_LEN_PCT,
     LOOP_LEN_CV,
+    LOOP_LEN_CV2,
     LOOP_LENGTH,
     LOOP_BEATS_CV,
+    LOOP_BEATS_CV2,
     LOOP_ENABLE,
 
     NUM_PARAMS
@@ -487,6 +549,7 @@ private:
   int8_t djfilter = 0;
   int8_t djfilter_mod = 0;
   CVInputMap djfilter_cv;
+  CVInputMap djfilter_cv2;
 
   bool lowcut = false;
   bool filter_on = false;
@@ -494,8 +557,10 @@ private:
 
   DigitalInputMap playstop_cv;
   CVInputMap level_cv;
+  CVInputMap level_cv2;
   int16_t playrate = 100;
   CVInputMap playrate_cv;
+  CVInputMap playrate_cv2;
 
   bool go_time = false;
   bool sync_trig = false;
@@ -522,15 +587,19 @@ private:
   bool clock_was_running = false;
 
   CVInputMap start_beat_cv;
+  CVInputMap start_beat_cv2;
 
   int8_t loop_start_pct = 0;
   int8_t loop_start_mod = 0;
   CVInputMap loop_start_cv;
+  CVInputMap loop_start_cv2;
 
   int8_t loop_len_pct = 100;
   int8_t loop_len_mod = 100;
   CVInputMap loop_len_cv;
+  CVInputMap loop_len_cv2;
   CVInputMap loop_len_beats_cv;
+  CVInputMap loop_len_beats_cv2;
 
   uint32_t start_ms = 0;
   uint32_t finish_ms = 0;
@@ -547,10 +616,10 @@ private:
     uint32_t total_milli = wavplayer.lengthMillis();
     if (total_milli == 0) return;
 
-    int st_cv = ReadModulation(loop_start_cv, 100);
+    int st_cv = ReadModulation(loop_start_cv, 100) + ReadModulation(loop_start_cv2, 100);
     loop_start_mod = constrain(loop_start_pct + st_cv, 0, 99);
 
-    int len_cv = ReadModulation(loop_len_cv, 100);
+    int len_cv = ReadModulation(loop_len_cv, 100) + ReadModulation(loop_len_cv2, 100);
     int max_avail = 100 - loop_start_mod;
     loop_len_mod = constrain(loop_len_pct + len_cv, 1, max_avail);
 
@@ -665,7 +734,7 @@ private:
 
   void FileMatchTempo() {
     wavplayer.matchTempo(
-      HS::clock_m.GetTempoFloat() * (playrate * 0.01f + ((float)ReadModulation(playrate_cv, 100) * 0.01f))
+      HS::clock_m.GetTempoFloat() * (playrate * 0.01f + ((float)(ReadModulation(playrate_cv, 100) + ReadModulation(playrate_cv2, 100)) * 0.01f))
     );
   }
 

@@ -16,8 +16,8 @@ public:
   void Controller() {
     for (int i = 0; i < Channels; i++) {
       filters[i].frequency(PitchToRatio(pitch + pitch_cv.In() + pitch_cv2.In()) * C3);
-      filters[i].resonance(0.01f * res + res_cv.InF());
-      filters[i].inputDrive(0.01f * gain + gain_cv.InF());
+      filters[i].resonance(0.01f * res + res_cv.InF() + res_cv2.InF());
+      filters[i].inputDrive(0.01f * gain + gain_cv.InF() + gain_cv2.InF());
       filters[i].passbandGain(0.01f * pb_gain);
     }
   }
@@ -34,26 +34,32 @@ public:
     gfxPrint(pitch_cv2);
     gfxEndCursor(cursor == 2, false, pitch_cv2.InputName());
 
-    gfxPrint(label_x, 25, "Res: ");
-    gfxStartCursor();
+    gfxPrint(label_x, 25, "Res");
+    gfxStartCursor(21, 25);
     graphics.printf("%3d%%", res);
     gfxEndCursor(cursor == 3);
-    gfxStartCursor();
+    gfxStartCursor(46, 25);
     gfxPrint(res_cv);
     gfxEndCursor(cursor == 4, false, res_cv.InputName());
+    gfxStartCursor(54, 25);
+    gfxPrint(res_cv2);
+    gfxEndCursor(cursor == 5, false, res_cv2.InputName());
 
-    gfxPrint(label_x, 35, "Drv: ");
-    gfxStartCursor();
+    gfxPrint(label_x, 35, "Drv");
+    gfxStartCursor(21, 35);
     graphics.printf("%3d%%", gain);
-    gfxEndCursor(cursor == 5);
-    gfxStartCursor();
+    gfxEndCursor(cursor == 6);
+    gfxStartCursor(46, 35);
     gfxPrint(gain_cv);
-    gfxEndCursor(cursor == 6, false, gain_cv.InputName());
+    gfxEndCursor(cursor == 7, false, gain_cv.InputName());
+    gfxStartCursor(54, 35);
+    gfxPrint(gain_cv2);
+    gfxEndCursor(cursor == 8, false, gain_cv2.InputName());
 
     gfxPrint(label_x, 45, "PBG: ");
     gfxStartCursor();
     graphics.printf("%3d", pb_gain);
-    gfxEndCursor(cursor == 7);
+    gfxEndCursor(cursor == 9);
 
     gfxDisplayInputMapEditor();
   }
@@ -64,7 +70,9 @@ public:
           IndexedInput(1, pitch_cv),
           IndexedInput(2, pitch_cv2),
           IndexedInput(4, res_cv),
-          IndexedInput(6, gain_cv)
+          IndexedInput(5, res_cv2),
+          IndexedInput(7, gain_cv),
+          IndexedInput(8, gain_cv2)
         ))
       return;
     CursorToggle();
@@ -72,7 +80,7 @@ public:
 
   void OnEncoderMove(int direction) override {
     if (!EditMode()) {
-      MoveCursor(cursor, direction, 7);
+      MoveCursor(cursor, direction, 9);
       return;
     }
     if(EditSelectedInputMap(direction)) return;
@@ -93,12 +101,18 @@ public:
         res_cv.ChangeSource(direction);
         break;
       case 5:
-        gain = constrain(gain + direction, 0, 400);
+        res_cv2.ChangeSource(direction);
         break;
       case 6:
-        gain_cv.ChangeSource(direction);
+        gain = constrain(gain + direction, 0, 400);
         break;
       case 7:
+        gain_cv.ChangeSource(direction);
+        break;
+      case 8:
+        gain_cv2.ChangeSource(direction);
+        break;
+      case 9:
         pb_gain = constrain(pb_gain + direction, 0, 50);
         break;
     }
@@ -107,11 +121,13 @@ public:
   void OnDataRequest(std::array<uint64_t, CONFIG_SIZE>& data) {
     data[0] = PackPackables(pitch, res, gain, pb_gain);
     data[1] = PackPackables(pitch_cv, res_cv, gain_cv, pitch_cv2);
+    data[2] = PackPackables(res_cv2, gain_cv2);
   }
 
   void OnDataReceive(const std::array<uint64_t, CONFIG_SIZE>& data) {
     UnpackPackables(data[0], pitch, res, gain, pb_gain);
     UnpackPackables(data[1], pitch_cv, res_cv, gain_cv, pitch_cv2);
+    UnpackPackables(data[2], res_cv2, gain_cv2);
   }
 
   AudioStream* InputStream() override {
@@ -133,7 +149,9 @@ private:
   CVInputMap pitch_cv;
   CVInputMap pitch_cv2;
   CVInputMap res_cv;
+  CVInputMap res_cv2;
   CVInputMap gain_cv;
+  CVInputMap gain_cv2;
 
   AudioPassthrough<Channels> input;
   std::array<AudioFilterLadder, Channels> filters;
