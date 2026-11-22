@@ -86,8 +86,6 @@ public:
     }
 
     start_beat_mod = constrain(start_beat + start_beat_cv.SemitoneIn() + start_beat_cv2.SemitoneIn(), 0, 999);
-    if (wavplayer_ready)
-      wavplayer.setBeatStart(start_beat_mod);
 
     int beats_mod = ReadModulation(loop_len_beats_cv, 131) + ReadModulation(loop_len_beats_cv2, 131);
     effective_loop_length = constrain(loop_length + beats_mod, 0, 131);
@@ -603,8 +601,9 @@ private:
 
   uint32_t start_ms = 0;
   uint32_t finish_ms = 0;
-  uint32_t start_byte_pos = 0;
-  uint32_t finish_byte_pos = 0;
+  uint32_t file_total_samples = 0;
+  uint32_t start_sample_pos = 0;
+  uint32_t finish_sample_pos = 0;
 
   uint32_t last_subbeat_ms = 0;
 
@@ -614,31 +613,65 @@ private:
 
   void UpdateLoopPoints() {
     uint32_t total_milli = wavplayer.lengthMillis();
-    if (total_milli == 0) return;
+    uint32_t total_samples = file_total_samples;
+    if (total_milli == 0 || total_samples == 0) return;
 
-    int st_cv = ReadModulation(loop_start_cv, 100) + ReadModulation(loop_start_cv2, 100);
-    loop_start_mod = constrain(loop_start_pct + st_cv, 0, 99);
+    // Continuous float percentage so dual modulation supports both coarse + fine sub-percent start
+    float st_cv_f = (loop_start_cv.InF() + loop_start_cv2.InF()) * 100.0f;
+    float st_pct_f = constrain((float)loop_start_pct + st_cv_f, 0.0f, 99.0f);
+    loop_start_mod = (int8_t)constrain((int)roundf(st_pct_f), 0, 99);
 
-    int len_cv = ReadModulation(loop_len_cv, 100) + ReadModulation(loop_len_cv2, 100);
-    int max_avail = 100 - loop_start_mod;
-    loop_len_mod = constrain(loop_len_pct + len_cv, 1, max_avail);
+    float len_cv_f = (loop_len_cv.InF() + loop_len_cv2.InF()) * 100.0f;
+    float max_avail_f = 100.0f - st_pct_f;
+    float len_pct_f = constrain((float)loop_len_pct + len_cv_f, 1.0f, max_avail_f);
+    loop_len_mod = (int8_t)constrain((int)roundf(len_pct_f), 1, 100 - loop_start_mod);
 
-    start_ms = ((uint64_t)total_milli * loop_start_mod) / 100;
-    finish_ms = start_ms + (((uint64_t)total_milli * loop_len_mod) / 100);
+    // Optional StartBeat offset (in samples & ms) added to percentage start
+    uint32_t beat_offset_samples = 0;
+    uint32_t beat_offset_ms = 0;
+    if (start_beat_mod > 0) {
+      float bpm = wavplayer.getBPM();
+      if (bpm > 1.0f) {
+        double sr = ((double)total_samples * 1000.0) / (double)total_milli;
+        uint32_t spb = (uint32_t)(sr * 60.0 / (double)bpm);
+        beat_offset_samples = spb * (uint32_t)start_beat_mod;
+        beat_offset_ms = (uint32_t)((double)start_beat_mod * 60000.0 / (double)bpm);
+      }
+    }
+
+    uint32_t pct_start_samples = (uint32_t)(((double)total_samples * (double)st_pct_f) * 0.01);
+    uint32_t len_samples = (uint32_t)(((double)total_samples * (double)len_pct_f) * 0.01);
+    if (len_samples < 64) len_samples = (total_samples < 64) ? total_samples : 64;
+
+    uint32_t new_start_sample = pct_start_samples + beat_offset_samples;
+    if (new_start_sample >= total_samples) {
+      new_start_sample = (total_samples > 64) ? (total_samples - 64) : 0;
+    }
+    uint32_t new_finish_sample = new_start_sample + len_samples;
+    if (new_finish_sample > total_samples) new_finish_sample = total_samples;
+
+    start_ms = (uint32_t)(((double)total_milli * (double)st_pct_f) * 0.01) + beat_offset_ms;
+    if (start_ms >= total_milli) start_ms = (total_milli > 1) ? (total_milli - 1) : 0;
+    finish_ms = start_ms + (uint32_t)(((double)total_milli * (double)len_pct_f) * 0.01);
     if (finish_ms > total_milli) finish_ms = total_milli;
 
-    start_byte_pos = ((uint64_t)start_ms * 44100 * 4) / 1000;
-    start_byte_pos &= ~0x03;
-
-    finish_byte_pos = ((uint64_t)finish_ms * 44100 * 4) / 1000;
-    finish_byte_pos &= ~0x03;
+    if (new_start_sample != start_sample_pos || new_finish_sample != finish_sample_pos) {
+      start_sample_pos = new_start_sample;
+      finish_sample_pos = new_finish_sample;
+      if (wavplayer_ready) {
+        wavplayer.setLoopStart(start_sample_pos);
+        wavplayer.setLoopFinish(finish_sample_pos);
+        wavplayer.setPlayStart(loop_on ? play_start_loop : play_start_arbitrary, start_sample_pos);
+      }
+    }
   }
 
   void ApplyLoopPositions() {
     UpdateLoopPoints();
-    wavplayer.setLoopStart(start_byte_pos);
-    wavplayer.setLoopFinish(finish_byte_pos);
-    wavplayer.setPlayStart(loop_on ? play_start_loop : play_start_sample, start_byte_pos);
+    wavplayer.setLoopType(loop_on ? looptype_repeat : looptype_none);
+    wavplayer.setLoopStart(start_sample_pos);
+    wavplayer.setLoopFinish(finish_sample_pos);
+    wavplayer.setPlayStart(loop_on ? play_start_loop : play_start_arbitrary, start_sample_pos);
   }
 
   void FileLoad() {
@@ -648,7 +681,11 @@ private:
     filename[2] += wavplayer_select % 10;
     wavplayer_ready = wavplayer.playWav(filename);
     if (wavplayer_ready) {
-      UpdateLoopPoints();
+      // playWav initializes loopFinish to _file_samples (exact total sample frames in the file)
+      file_total_samples = (uint32_t)wavplayer.getLoopFinish();
+      start_sample_pos = 0xFFFFFFFF;
+      finish_sample_pos = 0xFFFFFFFF;
+      ApplyLoopPositions();
     }
   }
 
@@ -685,7 +722,8 @@ private:
       }
     } else {
       if (FileIsPlaying()) {
-        wavplayer.setPlayStart(play_start_sample, start_byte_pos);
+        wavplayer.setLoopType(looptype_none);
+        wavplayer.setPlayStart(play_start_arbitrary, start_sample_pos);
       }
     }
   }
@@ -713,7 +751,8 @@ private:
   }
 
   void ChangeToFile(int select) {
-    wavplayer_select = (uint16_t)constrain(select, 0, 999);
+    while (select < 0) select += 1000;
+    wavplayer_select = (uint16_t)(select % 1000);
     wavplayer_reload = true;
     if (wavplayer.isPlaying()) {
       StartPlaying();
