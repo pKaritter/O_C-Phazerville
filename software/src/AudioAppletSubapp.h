@@ -443,6 +443,8 @@ public:
     STEREO_APPLETS = 3,
     MONO_APPLET_PARAMS = 4,
     STEREO_APPLET_PARAMS = 5,
+    MONO_APPLET_PARAMS_EXT = 6,
+    STEREO_APPLET_PARAMS_EXT = 7,
   };
 
   enum AudioConfigMainKeys : uint8_t { STEREO_MODE_FLAGS };
@@ -523,7 +525,10 @@ public:
 
         if (data) {
           LoadAppletData(
-            preset_key | key(STEREO_APPLET_PARAMS, slot * APPLET_CONFIG_SIZE),
+            preset_key,
+            STEREO_APPLET_PARAMS,
+            STEREO_APPLET_PARAMS_EXT,
+            slot,
             get_selected_stereo_applet(slot),
             slot
           );
@@ -545,7 +550,10 @@ public:
 
           if (data) {
             LoadAppletData(
-              preset_key | key(MONO_APPLET_PARAMS, slot_key * APPLET_CONFIG_SIZE),
+              preset_key,
+              MONO_APPLET_PARAMS,
+              MONO_APPLET_PARAMS_EXT,
+              slot_key,
               get_selected_mono_applet(ch, slot),
               slot
             );
@@ -573,7 +581,10 @@ public:
       PhzConfig::setValue(preset_key | key(STEREO_APPLETS, slot), applet_id);
 
       SaveAppletData(
-        preset_key | key(STEREO_APPLET_PARAMS, slot * APPLET_CONFIG_SIZE),
+        preset_key,
+        STEREO_APPLET_PARAMS,
+        STEREO_APPLET_PARAMS_EXT,
+        slot,
         stereo_applet,
         slot
       );
@@ -587,7 +598,10 @@ public:
         PhzConfig::setValue(preset_key | key(MONO_APPLETS, slot_key), applet_id);
 
         SaveAppletData(
-          preset_key | key(MONO_APPLET_PARAMS, slot_key * APPLET_CONFIG_SIZE),
+          preset_key,
+          MONO_APPLET_PARAMS,
+          MONO_APPLET_PARAMS_EXT,
+          slot_key,
           mono_applet,
           slot
         );
@@ -595,10 +609,22 @@ public:
     }
   }
 
-  void LoadAppletData(uint16_t key, HemisphereAudioApplet& applet, size_t slot) {
+  void LoadAppletData(
+    uint16_t preset_key,
+    uint8_t base_section,
+    uint8_t ext_section,
+    uint8_t slot_key,
+    HemisphereAudioApplet& applet,
+    size_t slot
+  ) {
     array<uint64_t, APPLET_CONFIG_SIZE> data;
     for (uint_fast8_t i = 0; i < APPLET_CONFIG_SIZE; ++i) {
-      if (PhzConfig::getValue(key + i, data[i])) {
+      // Keep data[0..3] at legacy stride 4 so existing presets load intact;
+      // store extended data[4..5] in ext_section.
+      uint16_t k = (i < LEGACY_CONFIG_SIZE)
+        ? (preset_key | key(base_section, slot_key * LEGACY_CONFIG_SIZE + i))
+        : (preset_key | key(ext_section, slot_key * EXT_CONFIG_SIZE + (i - LEGACY_CONFIG_SIZE)));
+      if (PhzConfig::getValue(k, data[i])) {
         Serial.printf(" | data[%u]=", i);
         Serial.print(data[i], HEX);
       } else {
@@ -610,14 +636,24 @@ public:
     applet.OnDataReceive(data);
   }
 
-  void SaveAppletData(uint16_t key, HemisphereAudioApplet& applet, size_t slot) {
+  void SaveAppletData(
+    uint16_t preset_key,
+    uint8_t base_section,
+    uint8_t ext_section,
+    uint8_t slot_key,
+    HemisphereAudioApplet& applet,
+    size_t slot
+  ) {
     array<uint64_t, APPLET_CONFIG_SIZE> data = {0};
     applet.SetSlot(slot);
     applet.OnDataRequest(data);
     for (uint_fast8_t i = 0; i < APPLET_CONFIG_SIZE; ++i) {
+      uint16_t k = (i < LEGACY_CONFIG_SIZE)
+        ? (preset_key | key(base_section, slot_key * LEGACY_CONFIG_SIZE + i))
+        : (preset_key | key(ext_section, slot_key * EXT_CONFIG_SIZE + (i - LEGACY_CONFIG_SIZE)));
       // We default to 0, so may as well skip them to save space
-      if (data[i]) PhzConfig::setValue(key + i, data[i]);
-      else PhzConfig::deleteKey(key + i); // clears old unused data
+      if (data[i]) PhzConfig::setValue(k, data[i]);
+      else PhzConfig::deleteKey(k); // clears old unused data
       Serial.printf(" | data[%u]=", i);
       Serial.print(data[i], HEX);
     }
@@ -630,6 +666,10 @@ protected:
 
 private:
   static const size_t APPLET_CONFIG_SIZE = HemisphereAudioApplet::CONFIG_SIZE;
+  static const size_t LEGACY_CONFIG_SIZE = 4;
+  static const size_t EXT_CONFIG_SIZE = (APPLET_CONFIG_SIZE > LEGACY_CONFIG_SIZE)
+    ? (APPLET_CONFIG_SIZE - LEGACY_CONFIG_SIZE)
+    : 1;
 
   uint32_t stereo = 0; // bitset
 

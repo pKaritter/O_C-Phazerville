@@ -254,6 +254,11 @@ public:
   }
 
   void Unpack(uint16_t data) {
+    if (data == 0) {
+      source = 0;
+      attenuversion = 60;
+      return;
+    }
     source = data & 0xFF;
 
     // migrate old data; zero is still disabled
