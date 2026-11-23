@@ -102,12 +102,13 @@ public:
 
     void View() override {
         if (!alloc_ok) {
-            gfxHeader("Looper");
             gfxPrint(1, 25, "Out of RAM!");
             return;
         }
 
-        gfxHeader(looper.isUsingPSRAM() ? "Looper+" : "Looper");
+        if (looper.isUsingPSRAM()) {
+            gfxPrint(56, 2, "+");
+        }
 
         LooperState st = looper.getState();
 
